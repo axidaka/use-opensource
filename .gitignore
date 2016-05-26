@@ -1,2 +1,6 @@
 #python
 *.py[cod]
+
+
+#pycharm 
+.idea
