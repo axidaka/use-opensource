@@ -8,7 +8,7 @@ __author__ = "zhqs"
 # http://doc.scrapy.org/en/latest/topics/spiders.html#scrapy.spiders.Spider
 import re
 import urlparse
-import os, sys
+import os, sys, copy
 
 reload(sys)
 sys.setdefaultencoding("utf-8")
@@ -54,7 +54,6 @@ class PicSpider(scrapy.Spider):
             None
 
     def parse(self, response):
-        print 'HomePage>>:', type(response).__name__, response.url
 
         # <a class="all sel"> 壁纸分类
         for selitem in response.xpath("//dl[@class='filter-item first clearfix']//a"):
@@ -79,22 +78,31 @@ class PicSpider(scrapy.Spider):
                     yield  request
 
     def parse_selection_item(self, response):
-        print '     SelItem>>:', type(response).__name__, response.url
+
         #/html/body/div[5]/div[1]/ul[1]/li[1]/a 壁纸列表
-        for divitem in response.xpath("//li[@class='photo-list-padding']/a[@class='pic']/@href").extract():
-            divitem_link = self.dom + divitem
-            request = scrapy.Request(divitem_link, callback=self.parese_divitem)
+        for divitem in response.xpath("//li[@class='photo-list-padding']/a[@class='pic']"):
 
-            # 检查参数并继续传递
-            self.check_picitem(response, request)
+            # 这里需要重新构造参数, 要不然id()返回都是同一个参数对象
+            tempPicItem = copy.deepcopy(self.get_picitem(response))
 
-            yield  request
+            if tempPicItem is not None:
+
+                href = divitem.xpath('./@href')
+                if len(href.extract()) != 0:
+
+                    divitem_link = self.dom + href.extract()[0]
+                    request = scrapy.Request(divitem_link, callback=self.parese_divitem)
+
+                    #壁纸列表标题
+                    tempPicItem['title'] = divitem.xpath('.//@title').extract()[0]
+                    self.transfer_picitem(request, tempPicItem)
+
+                    yield  request
 
     def parese_divitem(self, response):
         """
         解析 壁纸列表每一项
         """
-        print '         divitem>>:', type(response).__name__, response.url
 
         #//*[@id="showImg"]/li[1]/a/img
         for groupitem in response.xpath("//ul[@id='showImg']/li/a/@href").extract():
@@ -111,7 +119,6 @@ class PicSpider(scrapy.Spider):
         解析 壁纸详情页
         """
         # //*[@id="1920x1080"]
-        print '             detailitem>>:', type(response).__name__, response.url
         target = response.xpath("//dd[@id='tagfbl']/a[@id='1920x1080']/@href")
         if target:
             detail_link = self.dom + target[0].extract()
@@ -125,15 +132,18 @@ class PicSpider(scrapy.Spider):
             print "Error Canot find 1920x1080"
 
     def parse_finally(self, response):
-        print '                 finally>>:', type(response).__name__, response.url
-        # target = response.xpath('//img/@src')
-        # if target:
-        #     img_item = PicItem()
-        #     img_item['link'] = target[0].extract()
-        #     yield  img_item
 
-        tmpPicItem = self.get_picitem(response)
-        if  tmpPicItem is not None:
-            img_itemloader = ItemLoader(item = tmpPicItem, response = response)
-            img_itemloader.add_xpath('link', '//img/@src')
-            return  img_itemloader.load_item();
+        target = response.xpath('//img/@src')
+        if target:
+            tmpPicItem = self.get_picitem(response)
+            if tmpPicItem is not None:
+                tmpPicItem['link']    = target.extract()[0]
+                tmpPicItem['pic_dom'] = self.allowed_domains[0]
+                return  tmpPicItem
+
+        # tmpPicItem = self.get_picitem(response)
+        # if  tmpPicItem is not None:
+        #     img_itemloader = ItemLoader(item = tmpPicItem, response = response)
+        #     img_itemloader.add_xpath('link', '//img/@src')
+        #     img_itemloader.add_value('pic_dom', self.allowed_domains[0])
+        #     return  img_itemloader.load_item()

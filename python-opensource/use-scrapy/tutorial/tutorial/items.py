@@ -20,6 +20,8 @@ class PicItem(scrapy.Item):
     """
     用于保存爬图的信息, 主要是链接
     """
-    selection = scrapy.Field()    #分类
-    link = scrapy.Field()
+    selection        = scrapy.Field()    #分类
+    title            = scrapy.Field()    #列表名称
+    link             = scrapy.Field()
     pic_relativepath = scrapy.Field()   # 根据层级关系确定保存路劲
+    pic_dom          = scrapy.Field()   # 根域名
